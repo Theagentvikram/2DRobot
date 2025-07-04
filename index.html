@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Grid Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .game-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: white;
+            margin: 20px 0;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .auto-btn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .auto-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .auto-btn.active {
+            background: #ff6b6b;
+        }
+
+        .reset-btn {
+            background: #2196F3;
+            color: white;
+        }
+
+        .reset-btn:hover {
+            background: #1976D2;
+            transform: translateY(-2px);
+        }
+
+        .instructions {
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+            height: 25px;
+        }
+
+        .manual-mode {
+            color: #2196F3;
+        }
+
+        .auto-mode {
+            color: #4CAF50;
+        }
+
+        .error-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 3px solid #ff0000;
+            border-radius: 10px;
+            padding: 20px;
+            font-size: 18px;
+            color: #ff0000;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🤖 Robot Grid Game</h1>
+
+        <div class="status" id="status">Use Arrow Keys to Control</div>
+
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+        <div class="controls">
+            <button class="auto-btn" id="autoBtn" onclick="toggleAuto()">AUTO OFF</button>
+            <button class="reset-btn" onclick="resetGame()">RESET</button>
+        </div>
+
+        <div class="instructions">
+            <p><strong>🎮 Controls:</strong> Use Arrow Keys (↑↓←→) to move the robot</p>
+            <p><strong>🤖 AUTO Mode:</strong> Click AUTO to watch AI pathfinding demo</p>
+            <p><strong>🔄 Reset:</strong> Generate new maze and reset robot position</p>
+            <p><strong>🚫 Avoid:</strong> Don't hit the gray walls!</p>
+        </div>
+    </div>
+
+    <script>
+        // Game Configuration
+        const CONFIG = {
+            GRID_SIZE: 10,
+            CELL_SIZE: 60,
+            N_OBSTACLES: 16,
+            MAX_CLUSTER_SIZE: 2,
+            FLASH_TIME: 150,
+            ERROR_TIME: 1000,
+            AUTO_MOVE_DELAY: 300
+        };
+
+        // Colors
+        const COLORS = {
+            BACKGROUND: '#ffffff',
+            GRID_LINE: '#e0e0e0',
+            ROBOT: '#4CAF50',
+            ROBOT_CENTER: '#ffffff',
+            WALL: '#666666',
+            WALL_INNER: '#444444',
+            FLASH: '#ff0000'
+        };
+
+        // Game State
+        let gameState = {
+            robotX: 0,
+            robotY: 0,
+            obstacles: new Set(),
+            autoMode: false,
+            autoPath: [],
+            autoGoal: null,
+            flashWall: null,
+            flashTimer: 0,
+            errorTimer: 0,
+            autoTimer: 0,
+            lastTime: 0
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const autoBtnEl = document.getElementById('autoBtn');
+
+        // Initialize game
+        function init() {
+            generateObstacles();
+            gameLoop();
+            setupEventListeners();
+        }
+
+        // Generate obstacles with clustering constraints
+        function generateObstacles() {
+            gameState.obstacles.clear();
+
+            function getClusterSize(x, y, visited = new Set()) {
+                const key = `${x},${y}`;
+                if (visited.has(key) || !gameState.obstacles.has(key)) return 0;
+
+                visited.add(key);
+                let size = 1;
+
+                [[1,0], [-1,0], [0,1], [0,-1]].forEach(([dx, dy]) => {
+                    size += getClusterSize(x + dx, y + dy, visited);
+                });
+
+                return size;
+            }
+
+            while (gameState.obstacles.size < CONFIG.N_OBSTACLES) {
+                const x = Math.floor(Math.random() * CONFIG.GRID_SIZE);
+                const y = Math.floor(Math.random() * CONFIG.GRID_SIZE);
+                const key = `${x},${y}`;
+
+                if ((x === 0 && y === 0) || gameState.obstacles.has(key)) continue;
+
+                gameState.obstacles.add(key);
+
+                // Check cluster size
+                let maxCluster = 0;
+                [[1,0], [-1,0], [0,1], [0,-1]].forEach(([dx, dy]) => {
+                    const newKey = `${x + dx},${y + dy}`;
+                    if (gameState.obstacles.has(newKey)) {
+                        maxCluster = Math.max(maxCluster, getClusterSize(x + dx, y + dy));
+                    }
+                });
+
+                if (maxCluster > CONFIG.MAX_CLUSTER_SIZE) {
+                    gameState.obstacles.delete(key);
+                }
+            }
+        }
+
+        // BFS Pathfinding
+        function findPath(start, goal) {
+            if (start.x === goal.x && start.y === goal.y) return [];
+
+            const queue = [{pos: start, path: []}];
+            const visited = new Set([`${start.x},${start.y}`]);
+
+            while (queue.length > 0) {
+                const {pos, path} = queue.shift();
+
+                [[0,1], [1,0], [0,-1], [-1,0]].forEach(([dx, dy]) => {
+                    const newX = pos.x + dx;
+                    const newY = pos.y + dy;
+                    const key = `${newX},${newY}`;
+
+                    if (newX >= 0 && newX < CONFIG.GRID_SIZE &&
+                        newY >= 0 && newY < CONFIG.GRID_SIZE &&
+                        !gameState.obstacles.has(key) && !visited.has(key)) {
+
+                        const newPath = [...path, {dx, dy}];
+
+                        if (newX === goal.x && newY === goal.y) {
+                            return newPath;
+                        }
+
+                        queue.push({pos: {x: newX, y: newY}, path: newPath});
+                        visited.add(key);
+                    }
+                });
+            }
+
+            return [];
+        }
+
+        // Get random goal position
+        function getRandomGoal() {
+            let x, y;
+            do {
+                x = Math.floor(Math.random() * CONFIG.GRID_SIZE);
+                y = Math.floor(Math.random() * CONFIG.GRID_SIZE);
+            } while (gameState.obstacles.has(`${x},${y}`) || (x === 0 && y === 0));
+
+            return {x, y};
+        }
+
+        // Drawing functions
+        function drawGrid() {
+            ctx.strokeStyle = COLORS.GRID_LINE;
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CONFIG.CELL_SIZE, 0);
+                ctx.lineTo(i * CONFIG.CELL_SIZE, CONFIG.GRID_SIZE * CONFIG.CELL_SIZE);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * CONFIG.CELL_SIZE);
+                ctx.lineTo(CONFIG.GRID_SIZE * CONFIG.CELL_SIZE, i * CONFIG.CELL_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        function drawObstacles() {
+            gameState.obstacles.forEach(key => {
+                const [x, y] = key.split(',').map(Number);
+                const isFlash = gameState.flashWall === key;
+
+                ctx.fillStyle = isFlash ? COLORS.FLASH : COLORS.WALL;
+                ctx.fillRect(x * CONFIG.CELL_SIZE, y * CONFIG.CELL_SIZE, CONFIG.CELL_SIZE, CONFIG.CELL_SIZE);
+
+                if (!isFlash) {
+                    ctx.fillStyle = COLORS.WALL_INNER;
+                    ctx.fillRect(
+                        x * CONFIG.CELL_SIZE + 5,
+                        y * CONFIG.CELL_SIZE + 5,
+                        CONFIG.CELL_SIZE - 10,
+                        CONFIG.CELL_SIZE - 10
+                    );
+                }
+            });
+        }
+
+        function drawRobot() {
+            const x = gameState.robotX * CONFIG.CELL_SIZE;
+            const y = gameState.robotY * CONFIG.CELL_SIZE;
+
+            // Robot body
+            ctx.fillStyle = COLORS.ROBOT;
+            ctx.fillRect(x, y, CONFIG.CELL_SIZE, CONFIG.CELL_SIZE);
+
+            // Robot center
+            ctx.fillStyle = COLORS.ROBOT_CENTER;
+            ctx.beginPath();
+            ctx.arc(
+                x + CONFIG.CELL_SIZE / 2,
+                y + CONFIG.CELL_SIZE / 2,
+                CONFIG.CELL_SIZE / 3,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = COLORS.BACKGROUND;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid();
+            drawObstacles();
+            drawRobot();
+        }
+
+        // Game logic
+        function update(deltaTime) {
+            // Update timers
+            if (gameState.flashTimer > 0) {
+                gameState.flashTimer -= deltaTime;
+                if (gameState.flashTimer <= 0) {
+                    gameState.flashWall = null;
+                }
+            }
+
+            if (gameState.errorTimer > 0) {
+                gameState.errorTimer -= deltaTime;
+                if (gameState.errorTimer <= 0) {
+                    hideError();
+                }
+            }
+
+            // AUTO mode logic
+            if (gameState.autoMode) {
+                gameState.autoTimer += deltaTime;
+
+                if (gameState.autoTimer >= CONFIG.AUTO_MOVE_DELAY && gameState.autoPath.length > 0) {
+                    const move = gameState.autoPath.shift();
+                    tryMove(move.dx, move.dy);
+                    gameState.autoTimer = 0;
+
+                    // Get new goal if path is empty
+                    if (gameState.autoPath.length === 0) {
+                        gameState.autoGoal = getRandomGoal();
+                        gameState.autoPath = findPath(
+                            {x: gameState.robotX, y: gameState.robotY},
+                            gameState.autoGoal
+                        );
+                    }
+                }
+            }
+        }
+
+        function tryMove(dx, dy) {
+            const newX = gameState.robotX + dx;
+            const newY = gameState.robotY + dy;
+
+            if (newX < 0 || newX >= CONFIG.GRID_SIZE || newY < 0 || newY >= CONFIG.GRID_SIZE) {
+                return;
+            }
+
+            const key = `${newX},${newY}`;
+
+            if (gameState.obstacles.has(key)) {
+                gameState.flashWall = key;
+                gameState.flashTimer = CONFIG.FLASH_TIME;
+                showError("❌ Wall hit! Change direction");
+
+                // If in auto mode, find new path
+                if (gameState.autoMode) {
+                    gameState.autoGoal = getRandomGoal();
+                    gameState.autoPath = findPath(
+                        {x: gameState.robotX, y: gameState.robotY},
+                        gameState.autoGoal
+                    );
+                }
+            } else {
+                gameState.robotX = newX;
+                gameState.robotY = newY;
+            }
+        }
+
+        // UI functions
+        function showError(message) {
+            gameState.errorTimer = CONFIG.ERROR_TIME;
+
+            const popup = document.createElement('div');
+            popup.className = 'error-popup';
+            popup.textContent = message;
+            popup.id = 'errorPopup';
+            document.body.appendChild(popup);
+        }
+
+        function hideError() {
+            const popup = document.getElementById('errorPopup');
+            if (popup) {
+                popup.remove();
+            }
+        }
+
+        function updateStatus() {
+            if (gameState.autoMode) {
+                statusEl.textContent = "🤖 AUTO MODE: AI Pathfinding Active";
+                statusEl.className = "status auto-mode";
+            } else {
+                statusEl.textContent = "🎮 MANUAL MODE: Use Arrow Keys";
+                statusEl.className = "status manual-mode";
+            }
+        }
+
+        // Event handlers
+        function toggleAuto() {
+            gameState.autoMode = !gameState.autoMode;
+
+            if (gameState.autoMode) {
+                autoBtnEl.textContent = "AUTO ON";
+                autoBtnEl.classList.add("active");
+                gameState.autoGoal = getRandomGoal();
+                gameState.autoPath = findPath(
+                    {x: gameState.robotX, y: gameState.robotY},
+                    gameState.autoGoal
+                );
+                gameState.autoTimer = 0;
+            } else {
+                autoBtnEl.textContent = "AUTO OFF";
+                autoBtnEl.classList.remove("active");
+                gameState.autoPath = [];
+                gameState.autoGoal = null;
+            }
+
+            updateStatus();
+        }
+
+        function resetGame() {
+            gameState.robotX = 0;
+            gameState.robotY = 0;
+            gameState.flashWall = null;
+            gameState.flashTimer = 0;
+            gameState.errorTimer = 0;
+            gameState.autoPath = [];
+            gameState.autoGoal = null;
+
+            hideError();
+            generateObstacles();
+
+            if (gameState.autoMode) {
+                gameState.autoGoal = getRandomGoal();
+                gameState.autoPath = findPath(
+                    {x: gameState.robotX, y: gameState.robotY},
+                    gameState.autoGoal
+                );
+            }
+        }
+
+        function setupEventListeners() {
+            document.addEventListener('keydown', (e) => {
+                if (gameState.autoMode) return;
+
+                let dx = 0, dy = 0;
+
+                switch(e.key) {
+                    case 'ArrowUp': dy = -1; break;
+                    case 'ArrowDown': dy = 1; break;
+                    case 'ArrowLeft': dx = -1; break;
+                    case 'ArrowRight': dx = 1; break;
+                    case 'r':
+                    case 'R':
+                        resetGame();
+                        return;
+                }
+
+                if (dx !== 0 || dy !== 0) {
+                    tryMove(dx, dy);
+                    e.preventDefault();
+                }
+            });
+        }
+
+        // Game loop
+        function gameLoop(currentTime = 0) {
+            const deltaTime = currentTime - gameState.lastTime;
+            gameState.lastTime = currentTime;
+
+            update(deltaTime);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html>
+
