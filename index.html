@@ -5,29 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Grid Game</title>
     <style>
-        body {
+        html, body {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden; /* Prevent scrolling */
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             font-family: 'Arial', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
         }
 
         .game-container {
             background: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             text-align: center;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         h1 {
             color: #333;
-            margin-bottom: 20px;
-            font-size: 2.5em;
+            margin: 0 0 15px 0;
+            font-size: 2em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
         }
 
@@ -35,19 +42,19 @@
             border: 3px solid #333;
             border-radius: 10px;
             background: white;
-            margin: 20px 0;
+            margin: 10px 0;
         }
 
         .controls {
             display: flex;
             gap: 15px;
             justify-content: center;
-            margin: 20px 0;
+            margin: 15px 0;
         }
 
         button {
-            padding: 12px 24px;
-            font-size: 16px;
+            padding: 10px 20px;
+            font-size: 14px;
             font-weight: bold;
             border: none;
             border-radius: 8px;
@@ -81,17 +88,18 @@
         }
 
         .instructions {
-            margin-top: 20px;
+            margin-top: 15px;
             color: #666;
-            font-size: 14px;
-            line-height: 1.6;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 600px;
         }
 
         .status {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             margin: 10px 0;
-            height: 25px;
+            height: 20px;
         }
 
         .manual-mode {
@@ -117,11 +125,31 @@
             z-index: 1000;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            canvas {
+                max-width: 90vw;
+                max-height: 60vh;
+            }
+
+            .instructions {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <h1>🤖 Robot Grid Game</h1>
+        <h1>🐕 Dog Grid Game</h1>
 
         <div class="status" id="status">Use Arrow Keys to Control</div>
 
@@ -133,9 +161,9 @@
         </div>
 
         <div class="instructions">
-            <p><strong>🎮 Controls:</strong> Use Arrow Keys (↑↓←→) to move the robot</p>
+            <p><strong>🎮 Controls:</strong> Use Arrow Keys (↑↓←→) to move the dog</p>
             <p><strong>🤖 AUTO Mode:</strong> Click AUTO to watch AI pathfinding demo</p>
-            <p><strong>🔄 Reset:</strong> Generate new maze and reset robot position</p>
+            <p><strong>🔄 Reset:</strong> Generate new maze and reset dog position</p>
             <p><strong>🚫 Avoid:</strong> Don't hit the gray walls!</p>
         </div>
     </div>
@@ -147,8 +175,8 @@
             CELL_SIZE: 60,
             N_OBSTACLES: 16,
             MAX_CLUSTER_SIZE: 2,
-            FLASH_TIME: 150,
-            ERROR_TIME: 1000,
+            FLASH_TIME: 2000, // Changed to 2 seconds (2000ms)
+            ERROR_TIME: 2000, // Also changed error message to 2 seconds
             AUTO_MOVE_DELAY: 300
         };
 
@@ -182,6 +210,20 @@
         const ctx = canvas.getContext('2d');
         const statusEl = document.getElementById('status');
         const autoBtnEl = document.getElementById('autoBtn');
+
+        // Load dog image
+        const dogImage = new Image();
+        dogImage.src = 'robot.png'; // Using the existing robot.png as dog image
+        let imageLoaded = false;
+
+        dogImage.onload = function() {
+            imageLoaded = true;
+        };
+
+        dogImage.onerror = function() {
+            console.log('Could not load dog image, using fallback');
+            imageLoaded = false;
+        };
 
         // Initialize game
         function init() {
@@ -319,21 +361,51 @@
             const x = gameState.robotX * CONFIG.CELL_SIZE;
             const y = gameState.robotY * CONFIG.CELL_SIZE;
 
-            // Robot body
-            ctx.fillStyle = COLORS.ROBOT;
-            ctx.fillRect(x, y, CONFIG.CELL_SIZE, CONFIG.CELL_SIZE);
+            if (imageLoaded) {
+                // Draw the dog image
+                ctx.drawImage(dogImage, x, y, CONFIG.CELL_SIZE, CONFIG.CELL_SIZE);
+            } else {
+                // Fallback: Draw a cute dog-like design
+                // Dog body
+                ctx.fillStyle = '#8B4513'; // Brown color for dog
+                ctx.fillRect(x + 5, y + 5, CONFIG.CELL_SIZE - 10, CONFIG.CELL_SIZE - 10);
 
-            // Robot center
-            ctx.fillStyle = COLORS.ROBOT_CENTER;
-            ctx.beginPath();
-            ctx.arc(
-                x + CONFIG.CELL_SIZE / 2,
-                y + CONFIG.CELL_SIZE / 2,
-                CONFIG.CELL_SIZE / 3,
-                0,
-                Math.PI * 2
-            );
-            ctx.fill();
+                // Dog face
+                ctx.fillStyle = '#DEB887'; // Lighter brown for face
+                ctx.beginPath();
+                ctx.arc(
+                    x + CONFIG.CELL_SIZE / 2,
+                    y + CONFIG.CELL_SIZE / 2,
+                    CONFIG.CELL_SIZE / 3,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+
+                // Dog ears
+                ctx.fillStyle = '#654321';
+                ctx.beginPath();
+                ctx.arc(x + 15, y + 15, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + CONFIG.CELL_SIZE - 15, y + 15, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Dog eyes
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x + 20, y + 25, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + CONFIG.CELL_SIZE - 20, y + 25, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Dog nose
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x + CONFIG.CELL_SIZE / 2, y + 35, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         function draw() {
@@ -525,4 +597,3 @@
     </script>
 </body>
 </html>
-
