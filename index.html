@@ -63,20 +63,6 @@
             text-transform: uppercase;
         }
 
-        .auto-btn {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .auto-btn:hover {
-            background: #45a049;
-            transform: translateY(-2px);
-        }
-
-        .auto-btn.active {
-            background: #ff6b6b;
-        }
-
         .reset-btn {
             background: #2196F3;
             color: white;
@@ -100,6 +86,7 @@
             font-weight: bold;
             margin: 10px 0;
             height: 20px;
+            color: #2196F3;
         }
 
         .manual-mode {
@@ -156,13 +143,11 @@
         <canvas id="gameCanvas" width="600" height="600"></canvas>
 
         <div class="controls">
-            <button class="auto-btn" id="autoBtn" onclick="toggleAuto()">AUTO OFF</button>
             <button class="reset-btn" onclick="resetGame()">RESET</button>
         </div>
 
         <div class="instructions">
             <p><strong>🎮 Controls:</strong> Use Arrow Keys (↑↓←→) to move the dog</p>
-            <p><strong>🤖 AUTO Mode:</strong> Click AUTO to watch AI pathfinding demo</p>
             <p><strong>🔄 Reset:</strong> Generate new maze and reset dog position</p>
             <p><strong>🚫 Avoid:</strong> Don't hit the gray walls!</p>
         </div>
@@ -175,9 +160,8 @@
             CELL_SIZE: 60,
             N_OBSTACLES: 16,
             MAX_CLUSTER_SIZE: 2,
-            FLASH_TIME: 1000, // Changed to 1 second (1000ms)
-            ERROR_TIME: 1000, // Also changed error message to 1 second
-            AUTO_MOVE_DELAY: 300
+            FLASH_TIME: 1000, // 1 second (1000ms)
+            ERROR_TIME: 1000  // 1 second error message
         };
 
         // Colors
@@ -196,20 +180,15 @@
             robotX: 0,
             robotY: 0,
             obstacles: new Set(),
-            autoMode: false,
-            autoPath: [],
-            autoGoal: null,
             flashWall: null,
             flashTimer: 0,
             errorTimer: 0,
-            autoTimer: 0,
             lastTime: 0
         };
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const statusEl = document.getElementById('status');
-        const autoBtnEl = document.getElementById('autoBtn');
 
         // Load dog image
         const dogImage = new Image();
@@ -228,7 +207,7 @@
         // Initialize game
         function init() {
             generateObstacles();
-            updateStatus(); // Add this to initialize status
+            updateStatus();
             gameLoop();
             setupEventListeners();
         }
@@ -435,33 +414,6 @@
                     hideError();
                 }
             }
-
-            // AUTO mode logic - Fixed implementation
-            if (gameState.autoMode) {
-                gameState.autoTimer += deltaTime;
-
-                // Check if we need to move
-                if (gameState.autoTimer >= CONFIG.AUTO_MOVE_DELAY) {
-
-                    // If we don't have a path or goal, create one
-                    if (gameState.autoPath.length === 0 || !gameState.autoGoal) {
-                        gameState.autoGoal = getRandomGoal();
-                        gameState.autoPath = findPath(
-                            {x: gameState.robotX, y: gameState.robotY},
-                            gameState.autoGoal
-                        );
-                        console.log('New AUTO goal:', gameState.autoGoal, 'Path length:', gameState.autoPath.length);
-                    }
-
-                    // Execute the next move if we have a path
-                    if (gameState.autoPath.length > 0) {
-                        const move = gameState.autoPath.shift();
-                        console.log('AUTO moving:', move);
-                        tryMove(move.dx, move.dy);
-                        gameState.autoTimer = 0;
-                    }
-                }
-            }
         }
 
         function tryMove(dx, dy) {
@@ -478,24 +430,9 @@
                 gameState.flashWall = key;
                 gameState.flashTimer = CONFIG.FLASH_TIME;
                 showError("❌ Wall hit! Change direction");
-
-                // If in auto mode, clear path to force new pathfinding
-                if (gameState.autoMode) {
-                    gameState.autoPath = [];
-                    gameState.autoGoal = null;
-                }
             } else {
                 gameState.robotX = newX;
                 gameState.robotY = newY;
-
-                // Check if we reached the goal in AUTO mode
-                if (gameState.autoMode && gameState.autoGoal &&
-                    gameState.robotX === gameState.autoGoal.x &&
-                    gameState.robotY === gameState.autoGoal.y) {
-                    console.log('AUTO: Reached goal!');
-                    gameState.autoPath = [];
-                    gameState.autoGoal = null;
-                }
             }
         }
 
@@ -521,42 +458,8 @@
         }
 
         function updateStatus() {
-            if (gameState.autoMode) {
-                statusEl.textContent = "🤖 AUTO MODE: AI Pathfinding Active";
-                statusEl.className = "status auto-mode";
-            } else {
-                statusEl.textContent = "🎮 MANUAL MODE: Use Arrow Keys";
-                statusEl.className = "status manual-mode";
-            }
-        }
-
-        // Event handlers
-        function toggleAuto() {
-            gameState.autoMode = !gameState.autoMode;
-            console.log('AUTO mode toggled:', gameState.autoMode);
-
-            if (gameState.autoMode) {
-                autoBtnEl.textContent = "AUTO ON";
-                autoBtnEl.classList.add("active");
-
-                // Initialize AUTO mode
-                gameState.autoGoal = getRandomGoal();
-                gameState.autoPath = findPath(
-                    {x: gameState.robotX, y: gameState.robotY},
-                    gameState.autoGoal
-                );
-                gameState.autoTimer = 0;
-
-                console.log('AUTO mode started. Goal:', gameState.autoGoal, 'Path length:', gameState.autoPath.length);
-            } else {
-                autoBtnEl.textContent = "AUTO OFF";
-                autoBtnEl.classList.remove("active");
-                gameState.autoPath = [];
-                gameState.autoGoal = null;
-                console.log('AUTO mode stopped.');
-            }
-
-            updateStatus();
+            statusEl.textContent = "🎮 Use Arrow Keys to Control";
+            statusEl.className = "status";
         }
 
         function resetGame() {
@@ -565,26 +468,13 @@
             gameState.flashWall = null;
             gameState.flashTimer = 0;
             gameState.errorTimer = 0;
-            gameState.autoPath = [];
-            gameState.autoGoal = null;
 
             hideError();
             generateObstacles();
-
-            if (gameState.autoMode) {
-                gameState.autoGoal = getRandomGoal();
-                gameState.autoPath = findPath(
-                    {x: gameState.robotX, y: gameState.robotY},
-                    gameState.autoGoal
-                );
-                console.log('Game reset in AUTO mode. New goal:', gameState.autoGoal);
-            }
         }
 
         function setupEventListeners() {
             document.addEventListener('keydown', (e) => {
-                if (gameState.autoMode) return;
-
                 let dx = 0, dy = 0;
 
                 switch(e.key) {
