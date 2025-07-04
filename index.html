@@ -436,24 +436,28 @@
                 }
             }
 
-            // AUTO mode logic
+            // AUTO mode logic - Fixed implementation
             if (gameState.autoMode) {
                 gameState.autoTimer += deltaTime;
 
+                // Check if we need to move
                 if (gameState.autoTimer >= CONFIG.AUTO_MOVE_DELAY) {
-                    if (gameState.autoPath.length > 0) {
-                        const move = gameState.autoPath.shift();
-                        tryMove(move.dx, move.dy);
-                        gameState.autoTimer = 0;
-                    }
 
-                    // Get new goal if path is empty or we reached the goal
-                    if (gameState.autoPath.length === 0) {
+                    // If we don't have a path or goal, create one
+                    if (gameState.autoPath.length === 0 || !gameState.autoGoal) {
                         gameState.autoGoal = getRandomGoal();
                         gameState.autoPath = findPath(
                             {x: gameState.robotX, y: gameState.robotY},
                             gameState.autoGoal
                         );
+                        console.log('New AUTO goal:', gameState.autoGoal, 'Path length:', gameState.autoPath.length);
+                    }
+
+                    // Execute the next move if we have a path
+                    if (gameState.autoPath.length > 0) {
+                        const move = gameState.autoPath.shift();
+                        console.log('AUTO moving:', move);
+                        tryMove(move.dx, move.dy);
                         gameState.autoTimer = 0;
                     }
                 }
@@ -475,23 +479,32 @@
                 gameState.flashTimer = CONFIG.FLASH_TIME;
                 showError("❌ Wall hit! Change direction");
 
-                // If in auto mode, find new path
+                // If in auto mode, clear path to force new pathfinding
                 if (gameState.autoMode) {
-                    gameState.autoGoal = getRandomGoal();
-                    gameState.autoPath = findPath(
-                        {x: gameState.robotX, y: gameState.robotY},
-                        gameState.autoGoal
-                    );
+                    gameState.autoPath = [];
+                    gameState.autoGoal = null;
                 }
             } else {
                 gameState.robotX = newX;
                 gameState.robotY = newY;
+
+                // Check if we reached the goal in AUTO mode
+                if (gameState.autoMode && gameState.autoGoal &&
+                    gameState.robotX === gameState.autoGoal.x &&
+                    gameState.robotY === gameState.autoGoal.y) {
+                    console.log('AUTO: Reached goal!');
+                    gameState.autoPath = [];
+                    gameState.autoGoal = null;
+                }
             }
         }
 
         // UI functions
         function showError(message) {
             gameState.errorTimer = CONFIG.ERROR_TIME;
+
+            // Remove existing popup first
+            hideError();
 
             const popup = document.createElement('div');
             popup.className = 'error-popup';
@@ -520,21 +533,27 @@
         // Event handlers
         function toggleAuto() {
             gameState.autoMode = !gameState.autoMode;
+            console.log('AUTO mode toggled:', gameState.autoMode);
 
             if (gameState.autoMode) {
                 autoBtnEl.textContent = "AUTO ON";
                 autoBtnEl.classList.add("active");
+
+                // Initialize AUTO mode
                 gameState.autoGoal = getRandomGoal();
                 gameState.autoPath = findPath(
                     {x: gameState.robotX, y: gameState.robotY},
                     gameState.autoGoal
                 );
                 gameState.autoTimer = 0;
+
+                console.log('AUTO mode started. Goal:', gameState.autoGoal, 'Path length:', gameState.autoPath.length);
             } else {
                 autoBtnEl.textContent = "AUTO OFF";
                 autoBtnEl.classList.remove("active");
                 gameState.autoPath = [];
                 gameState.autoGoal = null;
+                console.log('AUTO mode stopped.');
             }
 
             updateStatus();
@@ -558,6 +577,7 @@
                     {x: gameState.robotX, y: gameState.robotY},
                     gameState.autoGoal
                 );
+                console.log('Game reset in AUTO mode. New goal:', gameState.autoGoal);
             }
         }
 
@@ -597,6 +617,7 @@
         }
 
         // Start the game
+        console.log('Starting game...');
         init();
     </script>
 </body>
