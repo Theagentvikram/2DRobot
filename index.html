@@ -175,8 +175,8 @@
             CELL_SIZE: 60,
             N_OBSTACLES: 16,
             MAX_CLUSTER_SIZE: 2,
-            FLASH_TIME: 2000, // Changed to 2 seconds (2000ms)
-            ERROR_TIME: 2000, // Also changed error message to 2 seconds
+            FLASH_TIME: 1000, // Changed to 1 second (1000ms)
+            ERROR_TIME: 1000, // Also changed error message to 1 second
             AUTO_MOVE_DELAY: 300
         };
 
@@ -228,6 +228,7 @@
         // Initialize game
         function init() {
             generateObstacles();
+            updateStatus(); // Add this to initialize status
             gameLoop();
             setupEventListeners();
         }
@@ -439,18 +440,21 @@
             if (gameState.autoMode) {
                 gameState.autoTimer += deltaTime;
 
-                if (gameState.autoTimer >= CONFIG.AUTO_MOVE_DELAY && gameState.autoPath.length > 0) {
-                    const move = gameState.autoPath.shift();
-                    tryMove(move.dx, move.dy);
-                    gameState.autoTimer = 0;
+                if (gameState.autoTimer >= CONFIG.AUTO_MOVE_DELAY) {
+                    if (gameState.autoPath.length > 0) {
+                        const move = gameState.autoPath.shift();
+                        tryMove(move.dx, move.dy);
+                        gameState.autoTimer = 0;
+                    }
 
-                    // Get new goal if path is empty
+                    // Get new goal if path is empty or we reached the goal
                     if (gameState.autoPath.length === 0) {
                         gameState.autoGoal = getRandomGoal();
                         gameState.autoPath = findPath(
                             {x: gameState.robotX, y: gameState.robotY},
                             gameState.autoGoal
                         );
+                        gameState.autoTimer = 0;
                     }
                 }
             }
